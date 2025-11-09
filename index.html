@@ -1,15 +1,64 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My JS Demo</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Infinite</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 </head>
 <body>
-  <h1>Hello from Omarchy V2!</h1>
-  <button id="clickme">Click me</button>
-  <p id="output"></p>
-  <script src="script.js"></script>
+
+<div id="map-output" class="container mt-5"></div>
+
+<!-- Bootstrap Bundle (includes Popper) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script src="js/db.js"></script>
+<script src="js/init.js"></script>      <!-- optional – can be empty -->
+<script src="js/events.js"></script>    <!-- optional – can be empty -->
+<script src="js/nodeMap.js"></script>
+
+<script>
+$(async () => {
+  // ------------------------------------------------- DB init
+  console.log('Opening DB…');
+  await DB.open('infinite', 2, db => {
+    if (!db.objectStoreNames.contains('nodes')) {
+      db.createObjectStore('nodes', { keyPath: 'id' });
+    }
+  });
+  console.log('DB ready');
+
+  // ------------------------------------------------- Generate map only on first run
+  const existing = await DB.getAll('nodes');
+  console.log('Got existing nodes, length:', existing.length);
+
+  if (existing.length === 0) {
+    console.log('First run – generating full map');
+    await NodeMap.generateFullMap();
+  } else {
+    console.log(`Map already exists – ${existing.length} nodes`);
+  }
+
+  // ------------------------------------------------- Load & display
+  const nodes = await NodeMap.loadMap();
+  console.table(nodes.map(n => ({
+    id: n.id.slice(-6),
+    biome: n.biome,
+    depth: n.depth,
+    neigh: n.neighbors.length
+  })));
+
+  $('#map-output').html(`<p>Loaded <strong>${nodes.length}</strong> nodes – ready for D3.</p>`);
+
+  // -----------------------------------------------------------------
+  // TODO: call your D3-force renderer here, e.g.
+  // renderMap(nodes);
+});
+</script>
+
 </body>
 </html>
