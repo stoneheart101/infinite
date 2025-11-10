@@ -1,18 +1,19 @@
 /**
- * Tiny IndexedDB wrapper – fixed for auto-increment stores + safety
+ * js/db.js
+ * Tiny IndexedDB wrapper – safe open/close, put/get/delete, clear.
+ * All methods return native Promises.
  */
 const DB = {
   db: null,
 
+  /** Throw if DB.open() has not been awaited yet */
   _check() {
-    if (!this.db) {
-      throw new Error('DB not initialized. Await DB.open() first.');
-    }
+    if (!this.db) throw new Error('DB not initialized – await DB.open() first.');
   },
 
-  /** Open (or create) the database */
+  /** Open (or create) the DB. `upgradeFn` runs only on version change. */
   async open(name, version, upgradeFn) {
-    return new Promise((res, rej) => {
+    return new Promise((resolve, reject) => {
       const req = indexedDB.open(name, version);
 
       req.onupgradeneeded = e => {
@@ -20,43 +21,39 @@ const DB = {
           const db = e.target.result;
           if (upgradeFn) upgradeFn(db);
         } catch (err) {
-          rej(err);
+          reject(err);
         }
       };
 
       req.onsuccess = e => {
         DB.db = e.target.result;
-        res(DB);
+        resolve(DB);
       };
 
-      req.onerror = e => rej(e.target.error);
-      req.onblocked = () => rej(new Error('DB blocked – close other tabs'));
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error('DB blocked – close other tabs'));
     });
   },
 
-  /** Put a value – works with keyPath or explicit key */
+  /** Put a record – works with objects that have a `keyPath` **or** explicit key */
   async put(store, value, key) {
     this._check();
-    
     return new Promise((resolve, reject) => {
-        const tx = DB.db.transaction(store, 'readwrite');
-        const st = tx.objectStore(store);
-        
-        const req = key !== undefined 
-        ? st.put(value, key) 
-        : st.put(value);
+      const tx = DB.db.transaction(store, 'readwrite');
+      const st = tx.objectStore(store);
+      const req = key !== undefined ? st.put(value, key) : st.put(value);
 
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
 
-        // Crucial: keep transaction alive until this request finishes
-        tx.oncomplete = () => resolve(req.result);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(new Error('Transaction aborted'));
+      // Keep transaction alive until the request finishes
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(new Error('Transaction aborted'));
     });
   },
 
-  /** Get by key */
+  /** Get a single record by primary key */
   async get(store, key) {
     this._check();
     return new Promise((res, rej) => {
@@ -67,7 +64,7 @@ const DB = {
     });
   },
 
-  /** Get all records */
+  /** Return **all** records from a store */
   async getAll(store) {
     this._check();
     return new Promise((res, rej) => {
@@ -78,11 +75,11 @@ const DB = {
     });
   },
 
-  /** Clear a store */
+  /** Empty a whole store */
   async clear(store) {
     this._check();
     if (!DB.db.objectStoreNames.contains(store)) {
-      console.warn(`Store '${store}' does not exist – skipping clear`);
+      console.warn(`[DB] Store '${store}' does not exist – skipping clear`);
       return;
     }
     const tx = DB.db.transaction(store, 'readwrite');
@@ -90,7 +87,7 @@ const DB = {
     await tx.done;
   },
 
-  /** Delete by key */
+  /** Delete a single record */
   async delete(store, key) {
     this._check();
     return new Promise((res, rej) => {
