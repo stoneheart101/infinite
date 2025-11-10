@@ -37,11 +37,23 @@ const DB = {
   /** Put a value – works with keyPath or explicit key */
   async put(store, value, key) {
     this._check();
-    const tx = DB.db.transaction(store, 'readwrite');
-    const st = tx.objectStore(store);
-    const req = key !== undefined ? st.put(value, key) : st.put(value);
-    await tx.done;
-    return req.result;
+    
+    return new Promise((resolve, reject) => {
+        const tx = DB.db.transaction(store, 'readwrite');
+        const st = tx.objectStore(store);
+        
+        const req = key !== undefined 
+        ? st.put(value, key) 
+        : st.put(value);
+
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+
+        // Crucial: keep transaction alive until this request finishes
+        tx.oncomplete = () => resolve(req.result);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(new Error('Transaction aborted'));
+    });
   },
 
   /** Get by key */

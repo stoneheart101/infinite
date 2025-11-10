@@ -1,0 +1,4 @@
+html, body { height: 100%; margin: 0; }
+  #map-container { min-height: 400px; }
+  #node-panel, #action-panel { min-height: 100px; }
+  .btn-sm { font-size: 0.8rem; }

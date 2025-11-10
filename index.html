@@ -7,56 +7,110 @@
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 </head>
-<body>
+<body class="h-100">
+  <div class="d-flex flex-column h-100">
 
-<div id="map-output" class="container mt-5"></div>
+    <!-- ====================== TOP MENU BAR ====================== -->
+    <header class="navbar navbar-dark bg-dark border-bottom border-secondary">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">Infinite</span>
+        <div class="d-flex gap-2">
+          <button id="reset-map" class="btn btn-outline-danger btn-sm" disabled>
+            Reset Map
+          </button>
+          <!-- Future: Save, Load, Settings -->
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-grow-1 d-flex overflow-hidden">
+      
+      <!-- ====================== MAIN MAP AREA ====================== -->
+      <main class="flex-grow-1 position-relative overflow-hidden bg-black" id="map-container">
+        <div id="map-output" class="text-center text-muted p-3">
+          Loading map...
+        </div>
+        <!-- D3 SVG will be injected here -->
+      </main>
+
+      <!-- ====================== RIGHT SIDEBAR ====================== -->
+      <aside class="bg-dark border-start border-secondary p-3" style="width: 280px; min-width: 280px;">
+        <h6 class="text-muted text-uppercase small">Node Info</h6>
+        <div id="node-panel" class="text-light small">
+          <em>Select a node to view details.</em>
+        </div>
+
+        <hr class="border-secondary">
+
+        <h6 class="text-muted text-uppercase small mt-3">Actions</h6>
+        <div id="action-panel">
+          <!-- Filled dynamically on node click -->
+        </div>
+      </aside>
+    </div>
+  </div>
+
+
+
+
+
+
 
 <!-- Bootstrap Bundle (includes Popper) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
+<script src="js/rng.js"></script>
 <script src="js/db.js"></script>
 <script src="js/init.js"></script>      <!-- optional – can be empty -->
-<script src="js/events.js"></script>    <!-- optional – can be empty -->
+<script src="js/events.js"></script>
 <script src="js/nodeMap.js"></script>
 
 <script>
+setRandomSeed(Date.now() % 100000);
+
 $(async () => {
-  // ------------------------------------------------- DB init
   console.log('Opening DB…');
-  await DB.open('infinite', 2, db => {
+  await DB.open('infinite', 1, db => {
     if (!db.objectStoreNames.contains('nodes')) {
       db.createObjectStore('nodes', { keyPath: 'id' });
     }
   });
   console.log('DB ready');
 
-  // ------------------------------------------------- Generate map only on first run
   const existing = await DB.getAll('nodes');
-  console.log('Got existing nodes, length:', existing.length);
+  console.log('Existing nodes:', existing.length);
 
+  let nodes;
   if (existing.length === 0) {
     console.log('First run – generating full map');
-    await NodeMap.generateFullMap();
+    nodes = await NodeMap.generateFullMap();
   } else {
-    console.log(`Map already exists – ${existing.length} nodes`);
+    console.log(`Map exists – loading ${existing.length} nodes`);
+    nodes = await NodeMap.loadMap();
   }
 
-  // ------------------------------------------------- Load & display
-  const nodes = await NodeMap.loadMap();
-  console.table(nodes.map(n => ({
+  console.table(nodes.slice(0, 10).map(n => ({
     id: n.id.slice(-6),
+    area: n.area,
     biome: n.biome,
     depth: n.depth,
     neigh: n.neighbors.length
   })));
 
-  $('#map-output').html(`<p>Loaded <strong>${nodes.length}</strong> nodes – ready for D3.</p>`);
+  $('#map-output').html(`
+    <p>Loaded <strong>${nodes.length}</strong> nodes – ready for D3.</p>
+    <small class="text-muted">Click Reset Map to regenerate.</small>
+  `);
 
-  // -----------------------------------------------------------------
-  // TODO: call your D3-force renderer here, e.g.
-  // renderMap(nodes);
+  // NOW SAFE: events.js has loaded
+  if (typeof window.enableResetButton === 'function') {
+    window.enableResetButton();
+  } else {
+    console.warn('enableResetButton not available yet');
+  }
 });
 </script>
 
